@@ -1,97 +1,137 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-		 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-	<modelVersion>4.0.0</modelVersion>
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
 
-	<groupId>org.sorcersoft.sigar</groupId>
-	<artifactId>sigar-maven</artifactId>
-	<version>1.6.4</version>
+    <groupId>org.sorcersoft.sigar</groupId>
+    <artifactId>sigar-maven</artifactId>
+    <version>1.6.4-2</version>
 
-	<properties>
-		<v.sigar.minor>1.6</v.sigar.minor>
-		<v.sigar>${v.sigar.minor}.4</v.sigar>
+    <prerequisites>
+        <maven>3.0.0</maven>
+    </prerequisites>
 
-		<deploy.repositoryId>remote-repository</deploy.repositoryId>
-		<deploy.repositoryUrl/>
-	</properties>
+    <inceptionYear>2013</inceptionYear>
 
-	<build>
-		<plugins>
-			<plugin>
-				<groupId>org.codehaus.gmaven</groupId>
-				<artifactId>gmaven-plugin</artifactId>
-				<version>1.5</version>
-				<executions>
-					<execution>
-						<goals>
-							<goal>generateStubs</goal>
-							<goal>compile</goal>
-						</goals>
-					</execution>
-				</executions>
-				<configuration>
-					<providerSelection>2.0</providerSelection>
-					<source>2.0</source>
-				</configuration>
-			</plugin>
-			<plugin>
-				<groupId>org.codehaus.mojo</groupId>
-				<artifactId>exec-maven-plugin</artifactId>
-				<version>1.2.1</version>
-				<goals>
-					<goal>java</goal>
-				</goals>
-				<configuration>
-					<mainClass>org.sorcersoft.sigar.Sigar</mainClass>
-					<arguments>
-						<argument>${project.basedir}</argument>
-						<argument>
-							http://netcologne.dl.sourceforge.net/project/sigar/sigar/${v.sigar.minor}/hyperic-sigar-${v.sigar}.zip
-						</argument>
-						<argument>${v.sigar}</argument>
-						<argument>${deploy.repositoryId}</argument>
-						<argument>${deploy.repositoryUrl}</argument>
-					</arguments>
-				</configuration>
-			</plugin>
-			<plugin>
-				<groupId>org.apache.maven.plugins</groupId>
-				<artifactId>maven-jar-plugin</artifactId>
-				<version>2.3.2</version>
-				<configuration>
-					<archive>
-						<manifest>
-							<mainClass>org.sorcersoft.sigar.Zip</mainClass>
-						</manifest>
-					</archive>
-				</configuration>
-			</plugin>
-		</plugins>
-	</build>
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.html</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
 
-	<dependencies>
-		<dependency>
-			<groupId>commons-io</groupId>
-			<artifactId>commons-io</artifactId>
-			<version>2.0.1</version>
-		</dependency>
+    <organization>
+        <name>Sorcersoft.com S.A.</name>
+        <url>http://sorcersoft.com/</url>
+    </organization>
 
-		<dependency>
-			<groupId>org.codehaus.groovy</groupId>
-			<artifactId>groovy-all</artifactId>
-			<version>2.0.6</version>
-		</dependency>
-		<dependency>
-			<groupId>org.slf4j</groupId>
-			<artifactId>slf4j-api</artifactId>
-			<version>1.7.5</version>
-		</dependency>
-		<dependency>
-			<groupId>ch.qos.logback</groupId>
-			<artifactId>logback-classic</artifactId>
-			<version>1.0.11</version>
-			<scope>runtime</scope>
-		</dependency>
-	</dependencies>
+    <issueManagement>
+        <system>github</system>
+        <url>https://github.com/sorcersoft/sigar/issues</url>
+    </issueManagement>
+
+    <developers>
+        <developer>
+            <name>Rafał Krupiński</name>
+            <organization>Sorcersoft.com S.A.</organization>
+            <organizationUrl>http://sorcersoft.com/</organizationUrl>
+            <roles>
+                <role>maven</role>
+            </roles>
+            <timezone>+1</timezone>
+        </developer>
+    </developers>
+
+    <properties>
+        <v.sigar.minor>1.6</v.sigar.minor>
+        <v.sigar>${v.sigar.minor}.4</v.sigar>
+        <v.sigar.mvn>${project.version}</v.sigar.mvn>
+        <v.slf4j>1.7.5</v.slf4j>
+
+        <repositoryId>remote-repository</repositoryId>
+        <repositoryUrl/>
+    </properties>
+
+    <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>*.pom</include>
+                </includes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <excludes>
+                    <exclude>*.pom</exclude>
+                </excludes>
+            </resource>
+        </resources>
+
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.gmaven</groupId>
+                <artifactId>gmaven-plugin</artifactId>
+                <version>1.5</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>generateStubs</goal>
+                            <goal>compile</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <providerSelection>2.0</providerSelection>
+                    <source>2.0</source>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>1.2.1</version>
+                <goals>
+                    <goal>java</goal>
+                </goals>
+                <configuration>
+                    <mainClass>org.sorcersoft.sigar.Sigar</mainClass>
+                    <arguments>
+                        <argument>${repositoryId}</argument>
+                        <argument>${repositoryUrl}</argument>
+                        <argument>
+                            http://sourceforge.net/projects/sigar/files/sigar/${v.sigar.minor}/hyperic-sigar-${v.sigar}.zip/download
+                        </argument>
+                    </arguments>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <dependencies>
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.4</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy-all</artifactId>
+            <version>2.1.9</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${v.slf4j}</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+            <version>1.0.13</version>
+            <scope>runtime</scope>
+        </dependency>
+    </dependencies>
 </project>

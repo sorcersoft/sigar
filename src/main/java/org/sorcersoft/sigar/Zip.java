@@ -1,84 +1,91 @@
 package org.sorcersoft.sigar;
 
-import static org.apache.commons.io.IOUtils.closeQuietly;
-import static org.apache.commons.io.IOUtils.copy;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.FileFilter;
-import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
-
-import org.apache.commons.io.IOUtils;
 
 /**
  * @author Rafał Krupiński
  */
 public class Zip {
+    private final static Logger log = LoggerFactory.getLogger(Zip.class);
 
-	// groupId:artifactId:packaging:classifier:version
-	public static void main(String[] args) throws IOException {
-		String[] coords = args[0].split(":");
-		String jarPath = String.format("%1$s/.m2/repository/%2$s/%3$s/%6$s/%3$s-%6$s-%5$s.%4$s",
-				System.getProperty("user.home"), coords[0].replace('.', '/'), coords[1], coords[2], coords[3],
-				coords[4]);
+    /**
+     * @return the list of roots, that is directories of files that are at the top level of the zip file
+     * @throws IOException
+     */
+    public static List<File> unzip(File zip, File targetDir) throws IOException {
+        ZipFile zipFile = new ZipFile(zip);
+        try {
+            Set<String> roots = new HashSet<String>();
+            Enumeration<? extends ZipEntry> entries = zipFile.entries();
+            while (entries.hasMoreElements()) {
+                ZipEntry entry = entries.nextElement();
+                if (entry.isDirectory()) {
+                    File dir = new File(targetDir, entry.getName());
+                    if (!dir.exists()) {
+                        FileUtils.forceMkdir(dir);
+                    }
+                } else
+                    copyInputStream(zipFile, entry, targetDir);
+                roots.add(getRoot(entry.getName()));
+            }
 
-		File input = new File(jarPath);
-		File target = input.getParentFile();
-		unzip(input, target);
-	}
+            ArrayList<File> result = new ArrayList<File>(roots.size());
+            for (String root : roots) {
+                result.add(new File(targetDir, root));
+            }
+            return result;
+        } finally {
+            zipFile.close();
+        }
+    }
 
-	public static File unzip(File zip) throws IOException {
-		File tempFile = File.createTempFile("sigar-maven-", "");
-		tempFile.delete();
-		tempFile.mkdirs();
-		unzip(zip, tempFile);
-		tempFile.deleteOnExit();
-		return tempFile;
-	}
+    private static String getRoot(String name) {
+        return name.substring(0, name.indexOf('/'));
+    }
 
-	public static void unzip(File zip, File targetDir) throws IOException {
-		ZipFile zipFile = new ZipFile(zip);
-		Enumeration<? extends ZipEntry> entries = zipFile.entries();
-		while (entries.hasMoreElements()) {
-			ZipEntry entry = entries.nextElement();
-			if (entry.isDirectory()) {
-				continue;
-			}
-			copyInputStream(zipFile, entry, targetDir);
-		}
+    private static File copyInputStream(ZipFile zipFile, ZipEntry entry, File targetDir) throws IOException {
+        File target = new File(targetDir, entry.getName());
+        InputStream inputStream = zipFile.getInputStream(entry);
+        try {
+            FileUtils.copyInputStreamToFile(inputStream, target);
+        } finally {
+            IOUtils.closeQuietly(inputStream);
+        }
+        return target;
+    }
 
-		zipFile.close();
-	}
-
-	private static void copyInputStream(ZipFile zipFile, ZipEntry entry, File targetDir) throws IOException {
-		File target = new File(targetDir, entry.getName());
-		target.getParentFile().mkdirs();
-		InputStream inputStream = zipFile.getInputStream(entry);
-		FileOutputStream outputStream = new FileOutputStream(target);
-		try {
-			copy(inputStream, outputStream);
-		} finally {
-			closeQuietly(inputStream);
-			closeQuietly(outputStream);
-		}
-	}
-
-	public static void zip(File targetFile, File root, FileFilter filter) throws IOException {
-		ZipOutputStream targetZip = new ZipOutputStream(new FileOutputStream(targetFile));
-
-		for (File file : root.listFiles(filter)) {
-			ZipEntry entry = new ZipEntry("lib/"+file.getName());
-			targetZip.putNextEntry(entry);
-			FileInputStream iStream = new FileInputStream(file);
-			IOUtils.copy(iStream, targetZip);
-			iStream.close();
-		}
-		targetZip.close();
-	}
+    public static void zip(File targetFile, File root, File zipRoot, FileFilter filter) throws IOException {
+        ZipOutputStream targetZip = new ZipOutputStream(new FileOutputStream(targetFile));
+        for (File file : root.listFiles(filter)) {
+            String entryPath = new File(zipRoot, file.getName()).getPath();
+            if (file.isFile()) {
+                log.debug(entryPath);
+                targetZip.putNextEntry(new ZipEntry(entryPath));
+                FileUtils.copyFile(file, targetZip);
+            } else if (file.isDirectory()) {
+                if (!entryPath.endsWith("/"))
+                    entryPath += "/";
+                log.debug(entryPath);
+                targetZip.putNextEntry(new ZipEntry(entryPath));
+            }
+        }
+        targetZip.close();
+    }
 }

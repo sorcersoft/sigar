@@ -1,5 +1,7 @@
 package org.sorcersoft.sigar
 
+import org.apache.commons.io.FileUtils
+import org.apache.commons.io.filefilter.AbstractFileFilter
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -8,86 +10,134 @@ import org.slf4j.LoggerFactory
  */
 class Sigar {
     static Logger log = LoggerFactory.getLogger(Sigar.class);
-    String sigarVersion;
-    File projectRoot;
     String repositoryId;
-    String repositoryUrl;
+    String repositoryUrl
+    private File tmpDir
 
     public static void main(String[] args) {
         Sigar sigar = new Sigar()
-        sigar.projectRoot = new File(args[0]);
-        sigar.sigarVersion = args[2];
-        sigar.repositoryId = args[3];
-        sigar.repositoryUrl = args[4];
-        sigar.run(args[1]);
+        sigar.repositoryId = args[0];
+        sigar.repositoryUrl = args[1];
+
+        if (sigar.repositoryUrl == null)
+            throw new IllegalArgumentException("repositoryUrl must be provided")
+
+        sigar.run(args[2]);
     }
 
     void run(String path) {
         log.info("sigar URL: {}", path)
-        log.info("base dir: {}", projectRoot)
 
+        tmpDir = File.createTempFile("sigar-maven", "")
+        FileUtils.forceDelete(tmpDir)
+        FileUtils.forceMkdir(tmpDir)
+
+
+        log.debug("downloading: {}", path)
         File distroFile = download(path);
         log.debug("downloaded: {}", distroFile)
 
-        File unzipped = Zip.unzip(distroFile)
+        List<File> unzipped = Zip.unzip(distroFile, tmpDir)
 
         //assume zip contains single root directory hyperic-sigar-<version>
-        File sigarRoot = unzipped.listFiles().iterator().next()
+        File sigarRoot = unzipped.iterator().next()
         File natives = buildNatives(sigarRoot);
+        File javadoc = buildDocs(sigarRoot);
+
         List deployments = new LinkedList();
+        deployments.add(deployMain(sigarRoot, javadoc));
+        deployments.add(deployNative(natives));
 
-
-        deployments.add(deployMain(sigarRoot, natives));
-        //deployments.add(deployNatives();
-
+        deployParent()
         deploy(deployments)
     }
 
     File download(String s) {
-        File targetDir = new File(projectRoot, "target")
-        targetDir.mkdirs();
-        File target = new File(targetDir, new File(s).getName());
-
-        def outputStream = target.newOutputStream()
-        outputStream << new URL(s).openStream()
-        outputStream.close();
-
+        File target = new File(tmpDir, new File(s).name);
+        FileUtils.copyURLToFile(new URL(s), target)
         return target;
     }
 
-    Map<String, String> deployMain(File sigarRoot, File natives) {
+    void deployParent() {
+        deployPom(getResource("sigar-parent.pom"),
+                [
+                        "altDeploymentRepository": repositoryId + "::default::" + repositoryUrl
+                ]
+        );
+    }
+
+    Map<String, String> deployMain(File sigarRoot, File javadoc) {
         return [
+                "files": javadoc.getPath(),
+                "classifiers": "javadoc",
+                "types": "jar",
+
                 "file": new File(sigarRoot, "sigar-bin/lib/sigar.jar").getPath(),
-                "pomFile": new File(new File(projectRoot, "src/main/resources"), "pom.xml").getPath(),
-                "generatePom": "false",
-                "files": natives.getPath(),
-                "classifiers": "native",
-                "types": "zip",
-                "url": repositoryUrl,
-                "repositoryId": repositoryId
+                "pomFile": getResource("sigar.pom").getPath(),
+                "generatePom": Boolean.FALSE.toString(),
+                "repositoryId": repositoryId,
+                "url": repositoryUrl
         ]
     }
 
+    Map<String, String> deployNative(File natives) {
+        return [
+                "file": natives.getPath(),
+                "pomFile": getResource("sigar-native.pom").getPath(),
+                "generatePom": Boolean.FALSE.toString(),
+                "repositoryId": repositoryId,
+                "url": repositoryUrl
+        ]
+    }
+
+    File getResource(String resource) {
+        URL res = getClass().getClassLoader().getResource(resource)
+        File dest = new File(tmpDir, new File(resource).name)
+        FileUtils.copyURLToFile(res, dest)
+        return dest
+    }
+
     File buildNatives(File sourceRoot) {
-        File targetDir = new File(projectRoot, "../sigar/target").getCanonicalFile();
-        targetDir.mkdirs();
-        File targetFile = new File(targetDir, "sigar-" + sigarVersion + "-native.zip");
+        File targetFile = new File(tmpDir, "sigar-native.zip");
         log.debug("target zip: {}", targetFile);
-        Zip.zip(targetFile, new File(sourceRoot, "sigar-bin/lib"), new NoJarFilter("lib"))
+        Zip.zip(targetFile, new File(sourceRoot, "sigar-bin/lib"), new File(""), new AbstractFileFilter() {
+            @Override
+            boolean accept(File dir, String name) {
+                return "lib".equals(dir.getName()) && !name.startsWith('.') && !name.endsWith(".jar")
+            }
+        })
         return targetFile;
     }
 
-    static void deploy(List maps) {
-        String deploy = "deploy:deploy-file"
-        //String deploy = "install:install-file"
-        StringBuilder exec;
-        maps.each { d ->
-            exec = new StringBuilder("mvn " + deploy + " "); d.each { k, v -> exec << "-D$k=$v " };
-            println exec;
+    File buildDocs(File sourceRoot) {
+        File targetFile = new File(tmpDir, "sigar-docs.jar");
+        log.debug("target zip: {}", targetFile);
+        Zip.zip(targetFile, new File(sourceRoot, "docs/javadoc"), new File(""), null)
+        return targetFile;
+    }
 
-            Process p = exec.toString().execute();
-            p.waitFor();
-            println p.text
+    static void deploy(List<Map<String, String>> maps) {
+        maps.each { map ->
+            mvn("deploy:deploy-file", map)
         }
+    }
+
+    static void deployPom(File pom, Map<String, String> params) {
+        mvn("deploy", pom, params)
+    }
+
+    static void mvn(String command, File pom, Map<String, String> params) {
+        mvn(command + " -f " + pom, params);
+    }
+
+    static void mvn(String command, Map<String, String> params) {
+        StringBuilder exec = new StringBuilder("mvn ").append(command)
+        params.each { k, v -> exec << " -D$k=$v" };
+        println exec;
+
+        Process p = exec.toString().execute();
+        p.waitFor();
+        println p.text
+
     }
 }
