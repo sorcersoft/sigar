@@ -23,5 +23,5 @@ Call java with -Djava.library.path=<native libraries directory>
 Deployment
 ==========
 ```bash
-mvn exec:java -DaltDeploymentRepository=...
+mvn exec:java -DrepositoryId=... -DrepositoryUrl=...
 ```
