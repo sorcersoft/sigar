@@ -100,7 +100,7 @@ class Sigar {
     File buildNatives(File sourceRoot) {
         File targetFile = new File(tmpDir, "sigar-native.zip");
         log.debug("target zip: {}", targetFile);
-        Zip.zip(targetFile, new File(sourceRoot, "sigar-bin/lib"), new File(""), new AbstractFileFilter() {
+        Zip.zip(targetFile, new File(sourceRoot, "sigar-bin/lib"), null, new AbstractFileFilter() {
             @Override
             boolean accept(File dir, String name) {
                 return "lib".equals(dir.getName()) && !name.startsWith('.') && !name.endsWith(".jar")
@@ -112,7 +112,7 @@ class Sigar {
     File buildDocs(File sourceRoot) {
         File targetFile = new File(tmpDir, "sigar-docs.jar");
         log.debug("target zip: {}", targetFile);
-        Zip.zip(targetFile, new File(sourceRoot, "docs/javadoc"), new File(""), null)
+        Zip.zip(targetFile, new File(sourceRoot, "docs/javadoc"), null, null)
         return targetFile;
     }
 

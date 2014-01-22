@@ -71,10 +71,24 @@ public class Zip {
         return target;
     }
 
+    /**
+     * create zip archive out of a directory
+     * @param targetFile    target ZIP file
+     * @param root          source root directory or file
+     * @param zipRoot       root path inside the target zip, may be null
+     * @param filter        file filter, may be null
+     * @throws IOException
+     */
     public static void zip(File targetFile, File root, File zipRoot, FileFilter filter) throws IOException {
         ZipOutputStream targetZip = new ZipOutputStream(new FileOutputStream(targetFile));
+        zip(targetZip, root, zipRoot != null ? zipRoot : new File(""), filter);
+        targetZip.close();
+    }
+
+    private static void zip(ZipOutputStream targetZip, File root, File zipRoot, FileFilter filter) throws IOException {
         for (File file : root.listFiles(filter)) {
-            String entryPath = new File(zipRoot, file.getName()).getPath();
+            String fileName = file.getName();
+            String entryPath = new File(zipRoot, fileName).getPath();
             if (file.isFile()) {
                 log.debug(entryPath);
                 targetZip.putNextEntry(new ZipEntry(entryPath));
@@ -84,8 +98,8 @@ public class Zip {
                     entryPath += "/";
                 log.debug(entryPath);
                 targetZip.putNextEntry(new ZipEntry(entryPath));
+                zip(targetZip, file, new File(zipRoot, fileName), filter);
             }
         }
-        targetZip.close();
     }
 }
