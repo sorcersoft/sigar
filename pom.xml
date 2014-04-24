@@ -6,7 +6,7 @@
 
     <groupId>org.sorcersoft.sigar</groupId>
     <artifactId>sigar-maven</artifactId>
-    <version>1.6.4-2</version>
+    <version>1.6.4-3</version>
 
     <prerequisites>
         <maven>3.0.0</maven>
