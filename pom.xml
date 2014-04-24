@@ -61,12 +61,14 @@
                 <filtering>true</filtering>
                 <includes>
                     <include>*.pom</include>
+                    <include>*.properties</include>
                 </includes>
             </resource>
             <resource>
                 <directory>src/main/resources</directory>
                 <excludes>
                     <exclude>*.pom</exclude>
+                    <exclude>*.properties</exclude>
                 </excludes>
             </resource>
         </resources>

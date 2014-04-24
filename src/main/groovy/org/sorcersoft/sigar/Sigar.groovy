@@ -1,9 +1,29 @@
+/*
+ * Copyright 2013, 2014 Sorcersoft.com S.A.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package org.sorcersoft.sigar
 
 import org.apache.commons.io.FileUtils
 import org.apache.commons.io.filefilter.AbstractFileFilter
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
+
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
 
 /**
  * @author Rafał Krupiński
@@ -13,6 +33,7 @@ class Sigar {
     String repositoryId;
     String repositoryUrl
     private File tmpDir
+    String groupId = "org.sorcersoft.sigar";
 
     public static void main(String[] args) {
         Sigar sigar = new Sigar()
@@ -28,7 +49,7 @@ class Sigar {
     void run(String path) {
         log.info("sigar URL: {}", path)
 
-        tmpDir = File.createTempFile("sigar-maven", "")
+        tmpDir = File.createTempFile("sigar-maven-", "")
         FileUtils.forceDelete(tmpDir)
         FileUtils.forceMkdir(tmpDir)
 
@@ -43,9 +64,10 @@ class Sigar {
         File sigarRoot = unzipped.iterator().next()
         File natives = buildNatives(sigarRoot);
         File javadoc = buildDocs(sigarRoot);
+        File sigar = buildMain(new File(sigarRoot, "sigar-bin/lib/sigar.jar"));
 
         List deployments = new LinkedList();
-        deployments.add(deployMain(sigarRoot, javadoc));
+        deployments.add(deployMain(sigar, javadoc));
         deployments.add(deployNative(natives));
 
         deployParent()
@@ -66,13 +88,13 @@ class Sigar {
         );
     }
 
-    Map<String, String> deployMain(File sigarRoot, File javadoc) {
+    Map<String, String> deployMain(File sigarJar, File javadoc) {
         return [
                 "files": javadoc.getPath(),
                 "classifiers": "javadoc",
                 "types": "jar",
 
-                "file": new File(sigarRoot, "sigar-bin/lib/sigar.jar").getPath(),
+                "file": sigarJar.getPath(),
                 "pomFile": getResource("sigar.pom").getPath(),
                 "generatePom": Boolean.FALSE.toString(),
                 "repositoryId": repositoryId,
@@ -97,13 +119,54 @@ class Sigar {
         return dest
     }
 
+    void copyResource(String resource, File dest) {
+        URL res = getClass().getClassLoader().getResource(resource)
+        FileUtils.copyURLToFile(res, dest)
+    }
+
+    File buildMain(File file) {
+        File unzipped = new File(tmpDir, "sigar-jar")
+        unzipped.mkdir()
+        Zip.unzip(file, unzipped);
+
+        Path mvn = Paths.get(unzipped.path, "META-INF/maven", groupId, "sigar")
+        Files.createDirectories(mvn)
+
+        copyResource("sigar.properties", mvn.resolve("pom.properties").toFile());
+        copyResource("sigar.pom", mvn.resolve("pom.xml").toFile())
+
+        File result = new File(tmpDir, "sigar-rebuilt.jar");
+        Zip.zip(result, unzipped, null, new AbstractFileFilter() {
+            @Override
+            boolean accept(File filtered) {
+                return !filtered.path.contains("/test/");
+            }
+        });
+        return result;
+    }
+
     File buildNatives(File sourceRoot) {
+        File zipRoot = new File(sourceRoot,"sigar-bin")
+        File libRoot = new File(zipRoot, "lib")
+
+        Path mvn = Paths.get(libRoot.path, "META-INF/maven", groupId, "sigar-native")
+        Files.createDirectories(mvn)
+
+        copyResource("sigar-native.properties", mvn.resolve("pom.properties").toFile());
+        copyResource("sigar-native.pom", mvn.resolve("pom.xml").toFile())
+
         File targetFile = new File(tmpDir, "sigar-native.zip");
         log.debug("target zip: {}", targetFile);
-        Zip.zip(targetFile, new File(sourceRoot, "sigar-bin/lib"), null, new AbstractFileFilter() {
+
+        Zip.zip(targetFile, libRoot, null, new AbstractFileFilter() {
             @Override
-            boolean accept(File dir, String name) {
-                return "lib".equals(dir.getName()) && !name.startsWith('.') && !name.endsWith(".jar")
+            boolean accept(File file) {
+                boolean result =(
+                        (file.isDirectory() && !file.name.equals("include"))
+                        || (file.isFile() && !file.name.startsWith('.') && !file.name.endsWith(".jar"))
+                )
+                log.debug("{} {}", file, result)
+                return result;
             }
         })
         return targetFile;
